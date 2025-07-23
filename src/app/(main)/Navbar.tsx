@@ -4,7 +4,6 @@ import logo from "@/assets/logo.png";
 import ThemeToggle from "@/components/ThemeToggle";
 import { UserButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
-import { CreditCard } from "lucide-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,7 +14,7 @@ export default function Navbar() {
   return (
     <header className="shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 p-3">
-        <Link href="/resumes" className="flex items-center gap-2">
+        <Link href="/home" className="flex items-center gap-2">
           <Image
             src={logo}
             alt="Logo"
@@ -23,10 +22,52 @@ export default function Navbar() {
             height={35}
             className="rounded-full"
           />
-          <span className="text-xl font-bold tracking-tight">
-            AI Resume Builder
-          </span>
+          <span className="text-xl font-bold tracking-tight">JobStack</span>
         </Link>
+        <nav className="nav">
+          <div className="nav__wrapper">
+            <ul className="menu flex items-center gap-x-[30px]">
+              <li className="menu__item">
+                <Link
+                  href="/resumes"
+                  className="menu__link"
+                  aria-label="Resume builder"
+                >
+                  Resume Builder
+                </Link>
+              </li>
+              <li className="menu__item">
+                <Link
+                  href="/analyzer"
+                  className="menu__link"
+                  aria-label="Resume analyzer"
+                >
+                  Resume Analyzer
+                </Link>
+              </li>
+              <li className="menu__item">
+                <Link
+                  href="/recommender"
+                  className="menu__link"
+                  aria-label="Job recommender"
+                >
+                  Job recommender
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </nav>
+        <div className="hamburger-menu">
+          <button
+            aria-label="Toggle navigation"
+            type="button"
+            className="nav-opener"
+          >
+            <span className="hamburger-icon"></span>
+            <span className="hamburger-icon"></span>
+            <span className="hamburger-icon"></span>
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <UserButton
@@ -40,13 +81,7 @@ export default function Navbar() {
               },
             }}
           >
-            <UserButton.MenuItems>
-              <UserButton.Link
-                label="Billing"
-                labelIcon={<CreditCard className="size-4" />}
-                href="/billing"
-              />
-            </UserButton.MenuItems>
+            <UserButton.MenuItems></UserButton.MenuItems>
           </UserButton>
         </div>
       </div>

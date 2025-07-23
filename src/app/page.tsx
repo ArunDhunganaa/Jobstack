@@ -27,7 +27,7 @@ export default function Home() {
           design a professional resume, even if you&apos;re not very smart.
         </p>
         <Button asChild size="lg" variant="premium">
-          <Link href="/resumes">Get started</Link>
+          <Link href="/home">Get started</Link>
         </Button>
       </div>
       <div>

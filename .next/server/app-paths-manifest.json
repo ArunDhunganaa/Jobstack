@@ -1,0 +1,9 @@
+{
+  "/page": "app/page.js",
+  "/(auth)/sign-in/[[...sign-in]]/page": "app/(auth)/sign-in/[[...sign-in]]/page.js",
+  "/(main)/editor/page": "app/(main)/editor/page.js",
+  "/(main)/resumes/page": "app/(main)/resumes/page.js",
+  "/(main)/home/page": "app/(main)/home/page.js",
+  "/(main)/analyzer/page": "app/(main)/analyzer/page.js",
+  "/(main)/recommender/page": "app/(main)/recommender/page.js"
+}
