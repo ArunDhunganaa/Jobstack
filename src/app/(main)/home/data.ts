@@ -11,7 +11,7 @@ export const teamMembers = [
     role: "Developer",
     about:
       "Expert in resume analysis and AI-driven job matching algorithms to help you land the perfect role.",
-    image: "/saugat.jpg",
+    image: "/sandip.jpg",
   },
   {
     name: "Saugat Tamang",
