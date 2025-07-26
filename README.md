@@ -21,8 +21,6 @@ npm run dev
 ```
 
 Visit the app at:  
-**http://localhost:3000**
+**https://jobstack-iota.vercel.app/**
 
 ---
-
-
