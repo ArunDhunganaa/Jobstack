@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@import '~swiper/swiper-bundle.css';
+@import 'accordion-js/dist/accordion.min.css'; 
+@import 'aos/dist/aos.css';
+
+
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -70,6 +75,54 @@ body {
     @apply bg-background text-foreground;
   }
 }
+@layer utilities {
+  .counter-reset {
+    counter-reset: section-counter;
+  }
+  .counter-increment {
+    counter-increment: section-counter;
+  }
+  .service-counter-reset {
+    counter-reset: service-counter;
+  }
+  .service-counter-increment {
+    counter-increment: service-counter;
+  }
+  .team-counter-reset {
+    counter-reset: team-counter;
+  }
+  .team-counter-increment {
+    counter-increment: team-counter;
+  }
+  .accordion-counter-reset {
+    counter-reset: accordion-counter;
+  }
+  .accordion-counter-increment {
+    counter-increment: accordion-counter;
+  }
+  
+  .service__center, .footer__center{
+    will-change: transform;
+   }
+  
+  .swiper-horizontal > .swiper-scrollbar, .swiper-scrollbar.swiper-scrollbar-horizontal{
+    background: rgba(#ffffff, 0.2);
+    height: 1px;
+  }    
+  
+  .swiper-horizontal > .swiper-scrollbar,
+  .swiper-scrollbar.swiper-scrollbar-horizontal {
+    width: auto;
+    left: 151px;
+    right: 100px;
+    bottom: 29px;
+  } 
+  
+  body.nav--active{
+    overflow: hidden;
+  }
+}
+
 
 @media print {
   #resumePreviewContent {

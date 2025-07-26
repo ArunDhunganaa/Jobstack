@@ -9,11 +9,11 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    template: "%s - AI Resume Builder",
-    absolute: "AI Resume Builder",
+    template: "%s - JobStack",
+    absolute: "JobStack - Resume Builder, Analyzer & Job Recommender",
   },
   description:
-    "AI Resume Builder is the easiest way to create a professional resume that will help you land your dream job.",
+    "JobStack helps you build professional resumes, analyze their impact, and get personalized job recommendations — all powered by AI.",
 };
 
 export default function RootLayout({

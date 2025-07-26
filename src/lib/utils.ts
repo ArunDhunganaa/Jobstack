@@ -2,6 +2,8 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ResumeServerData } from "./types";
 import { ResumeValues } from "./validation";
+import AOS from "aos/dist/aos.js";
+import Swiper from "swiper/bundle";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -49,4 +51,31 @@ export function mapToResumeValues(data: ResumeServerData): ResumeValues {
     colorHex: data.colorHex,
     summary: data.summary || undefined,
   };
+}
+
+export function initAos() {
+  AOS.init({
+    duration: 650,
+    delay: 1,
+    once: true,
+    easing: "ease-in-out-sine",
+  });
+}
+export default function testimonialSwiper() {
+  new Swiper(".testimonial__swiper", {
+    navigation: {
+      nextEl: ".swiper-button-next",
+      prevEl: ".swiper-button-prev",
+    },
+    pagination: {
+      el: ".swiper-pagination",
+      type: "fraction",
+      formatFractionCurrent: (number) => {
+        return number < 10 ? `0${number}` : number;
+      },
+      formatFractionTotal: (number) => {
+        return number < 10 ? `0${number}` : number;
+      },
+    },
+  });
 }

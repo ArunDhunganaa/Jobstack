@@ -13,16 +13,15 @@ export default function Navbar() {
 
   return (
     <header className="shadow-sm">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 p-3">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 py-24">
         <Link href="/home" className="flex items-center gap-2">
           <Image
             src={logo}
             alt="Logo"
-            width={35}
-            height={35}
+            width={250}
+            height={100}
             className="rounded-full"
           />
-          <span className="text-xl font-bold tracking-tight">JobStack</span>
         </Link>
         <nav className="nav">
           <div className="nav__wrapper">
