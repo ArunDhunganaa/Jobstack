@@ -1,8 +1,10 @@
+"use client";
 import logo from "@/assets/logo.png";
 import resumePreview from "@/assets/resume-preview.jpg";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
+import { handleClientScriptLoad } from "next/script";
 
 export default function Home() {
   return (
@@ -14,6 +16,9 @@ export default function Home() {
           width={250}
           height={150}
           className="mx-auto md:ms-0"
+          onClick={() => {
+            console.log("abc");
+          }}
         />
         <h1 className="mb-24 scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
           Find the{" "}

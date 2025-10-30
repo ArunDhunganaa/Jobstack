@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   description:
     "JobStack helps you build professional resumes, analyze their impact, and get personalized job recommendations — all powered by AI.",
 };
+<script src="https://js.puter.com/v2/"></script>;
 
 export default function RootLayout({
   children,

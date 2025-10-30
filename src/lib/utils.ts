@@ -61,6 +61,29 @@ export function initAos() {
     easing: "ease-in-out-sine",
   });
 }
+
+// src/utils/pdfjsLoader.ts
+export async function loadPdfJs() {
+  if (typeof window === "undefined") return null;
+
+  await new Promise<void>((resolve, reject) => {
+    if ((window as any).pdfjsLib) return resolve();
+
+    const script = document.createElement("script");
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load PDF.js"));
+    document.body.appendChild(script);
+  });
+
+  const pdfjs = (window as any).pdfjsLib;
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.worker.min.js";
+
+  return pdfjs;
+}
+
 export default function testimonialSwiper() {
   new Swiper(".testimonial__swiper", {
     navigation: {
