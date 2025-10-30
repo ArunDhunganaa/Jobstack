@@ -3,6 +3,15 @@ import { useState, useEffect } from "react";
 import Script from "next/script";
 import constants, { buildPresenceChecklist } from "@/lib/constant";
 import { loadPdfJs } from "@/lib/utils";
+declare global {
+  interface Window {
+    puter?: {
+      ai?: {
+        chat?: any;
+      };
+    };
+  }
+}
 // ----------------------
 // Types
 // ----------------------
@@ -135,7 +144,6 @@ export default function AnalyzerPage() {
       ],
       { model: "gpt-4o" },
     );
-
     const result = parseJsonResponse(
       typeof response === "string" ? response : response.message?.content || "",
     );
@@ -263,9 +271,7 @@ export default function AnalyzerPage() {
                 </div>
                 <div className="score-card">
                   <div className="mb-6 text-center">
-                    <div className="mb-3 flex items-center justify-center gap-2">
-                      
-                    </div>
+                    <div className="mb-3 flex items-center justify-center gap-2"></div>
                   </div>
                 </div>
               </div>
