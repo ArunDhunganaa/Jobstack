@@ -9,6 +9,23 @@ export default {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx,css}",
   ],
+  safelist: [
+    "from-emerald-400",
+    "to-emerald-500",
+    "group-hover/item:shadow-emerald-500/30",
+    "from-blue-400",
+    "to-blue-500",
+    "group-hover/item:shadow-blue-500/30",
+    "from-violet-400",
+    "to-violet-500",
+    "group-hover/item:shadow-violet-500/30",
+    "from-purple-400",
+    "to-purple-500",
+    "group-hover/item:shadow-purple-500/30",
+    "from-orange-400",
+    "to-orange-500",
+    "group-hover/item:shadow-orange-500/30",
+  ],
   theme: {
     extend: {
       colors: {
