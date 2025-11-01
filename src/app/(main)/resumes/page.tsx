@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <main className="mx-auto flex w-full max-w-7xl px-3 py-6">
-      <Button className="text-24 mx-auto flex w-fit gap-2 text-white">
+    <main className="mx-auto flex w-full max-w-7xl pb-50 pt-[180px]">
+      <Button className="mx-auto flex w-fit gap-2 bg-black p-12 text-24 text-white hover:bg-black/80">
         <Link href="/editor" className="flex">
           <PlusSquare className="size-24" />
           New resume

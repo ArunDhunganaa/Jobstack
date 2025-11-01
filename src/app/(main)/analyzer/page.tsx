@@ -110,7 +110,6 @@ export default function AnalyzerPage() {
         return content.items.map((item: any) => item.str).join(" ");
       }),
     );
-
     return texts.join("\n").trim();
   };
 
@@ -126,6 +125,7 @@ export default function AnalyzerPage() {
       if (!parsed.overallScore && !parsed.error) {
         throw new Error("Invalid AI response");
       }
+      console.log(parsed);
       return parsed;
     } catch (err: any) {
       throw new Error(`Failed to parse AI response: ${err.message}`);
@@ -531,7 +531,7 @@ export default function AnalyzerPage() {
                         <span
                           className={`${item.present ? "text-emerald-400" : "text-red-400"}`}
                         >
-                          {item.present ? "✅;" : "❌"}
+                          {item.present ? "✅" : "❌"}
                         </span>
                         <span>{item.label}</span>
                       </div>
@@ -540,7 +540,7 @@ export default function AnalyzerPage() {
                 </div>
               </div>
 
-              <div className="section-card group">
+              {/* <div className="section-card group">
                 <div className="mb-6 flex items-center gap-3">
                   <div className="icon-container bg-blue-500/20">
                     <span className="text-lg">&#128273;</span>
@@ -564,7 +564,7 @@ export default function AnalyzerPage() {
                     chances of getting noticed by recruiters.
                   </p>
                 </div>
-              </div>
+              </div> */}
             </div>
           )}
         </div>
