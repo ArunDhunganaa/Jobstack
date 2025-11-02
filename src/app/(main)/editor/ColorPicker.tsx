@@ -21,7 +21,7 @@ export default function ColorPicker({ color, onChange }: ColorPickerProps) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="icon"
+          className="h-32 w-32"
           title="Change resume color"
           onClick={() => {
             setShowPopover(true);

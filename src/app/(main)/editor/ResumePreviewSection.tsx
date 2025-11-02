@@ -1,8 +1,14 @@
+"use client";
+
 import ResumePreview from "@/components/ResumePreview";
 import { cn } from "@/lib/utils";
 import { ResumeValues } from "@/lib/validation";
+import { useRef } from "react";
 import BorderStyleButton from "./BorderStyleButton";
 import ColorPicker from "./ColorPicker";
+import DownloadButton from "./DownloadButton";
+import PrintButton from "./PrintButton";
+import TemplateSelector from "./TemplateSelector";
 
 interface ResumePreviewSectionProps {
   resumeData: ResumeValues;
@@ -15,6 +21,8 @@ export default function ResumePreviewSection({
   setResumeData,
   className,
 }: ResumePreviewSectionProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
     <div
       className={cn("group relative hidden w-full md:flex md:w-1/2", className)}
@@ -32,10 +40,17 @@ export default function ResumePreviewSection({
             setResumeData({ ...resumeData, borderStyle })
           }
         />
+        <TemplateSelector
+          template={resumeData.template}
+          onChange={(template) => setResumeData({ ...resumeData, template })}
+        />
+        <DownloadButton contentRef={contentRef} />
+        <PrintButton contentRef={contentRef} />
       </div>
       <div className="flex w-full justify-center overflow-y-auto bg-secondary p-3">
         <ResumePreview
           resumeData={resumeData}
+          contentRef={contentRef}
           className="max-w-2xl shadow-md"
         />
       </div>

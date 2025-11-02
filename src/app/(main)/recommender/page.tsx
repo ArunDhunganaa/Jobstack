@@ -22,6 +22,7 @@ export default function JobRecommenderPage() {
   const [pdfjsLib, setPdfjsLib] = useState<PDFJSLib | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasStoredResume, setHasStoredResume] = useState<boolean>(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,10 +42,52 @@ export default function JobRecommenderPage() {
     })();
   }, []);
 
+  // ----------------------
+  // Check for resume text from resumes page
+  // ----------------------
+  useEffect(() => {
+    const storedText = sessionStorage.getItem("resumeText");
+    if (storedText) {
+      setHasStoredResume(true);
+      if (aiReady && !isLoading && jobs.length === 0) {
+        // Auto-process the resume text
+        setResumeText(storedText);
+        setIsLoading(true);
+
+        // Extract keywords and fetch jobs
+        extractKeywords(storedText)
+          .then((keywords) => {
+            console.log("Extracted keywords:", keywords);
+            return fetchJobs(keywords);
+          })
+          .then((fetchedJobs) => {
+            const rankedJobs = rankJobs(storedText, fetchedJobs);
+            setJobs(rankedJobs);
+          })
+          .catch((err: any) => {
+            console.error(err);
+            setErrorMessage(err.message);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+
+        // Clean up sessionStorage
+        sessionStorage.removeItem("resumeText");
+        sessionStorage.removeItem("resumeFileName");
+        setHasStoredResume(false);
+      }
+    }
+  }, [aiReady, isLoading, jobs.length]);
+
   const reset = () => {
     setUploadedFile(null);
     setResumeText("");
+    setJobs([]);
     setIsLoading(false);
+    setHasStoredResume(false);
+    sessionStorage.removeItem("resumeText");
+    sessionStorage.removeItem("resumeFileName");
   };
 
   const extractPDFText = async (file: File): Promise<string> => {
@@ -166,27 +209,30 @@ export default function JobRecommenderPage() {
             </p>
           </div>
 
-          {!uploadedFile && (
-            <div className="upload-area text-center">
-              <h3 className="mb-2 text-xl text-slate-700 dark:text-slate-200">
-                Upload your resume
-              </h3>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={!aiReady}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className={`btn-primary inline-block ${!aiReady ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Choose PDF File
-              </label>
-            </div>
-          )}
+          {!uploadedFile &&
+            !hasStoredResume &&
+            !isLoading &&
+            jobs.length === 0 && (
+              <div className="upload-area text-center">
+                <h3 className="mb-2 text-xl text-slate-700 dark:text-slate-200">
+                  Upload your resume
+                </h3>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileUpload}
+                  disabled={!aiReady}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className={`btn-primary inline-block ${!aiReady ? "cursor-not-allowed opacity-50" : ""}`}
+                >
+                  Choose PDF File
+                </label>
+              </div>
+            )}
 
           {isLoading && (
             <div className="mt-8 text-center">
@@ -229,8 +275,12 @@ export default function JobRecommenderPage() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-3 justify-center mt-24">
-                <button type="button" onClick={reset} className="px-24 py-12 bg-red-500 dark:bg-red-500/20 text-red-100 dark:text-red-300 rounded-xl border border-red-500/30 hover:bg-red-500/30 transition text-lg cursor-pointer;">
+              <div className="mt-24 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="cursor-pointer; rounded-xl border border-red-500/30 bg-red-500 px-24 py-12 text-lg text-red-100 transition hover:bg-red-500/30 dark:bg-red-500/20 dark:text-red-300"
+                >
                   Reset
                 </button>
               </div>

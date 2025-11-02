@@ -42,7 +42,7 @@ export default function ResumeEditor({ resumeToEdit }: ResumeEditorProps) {
   )?.component;
 
   return (
-    <div className="flex grow flex-col">
+    <div className="flex grow flex-col pb-50 pt-[180px]">
       <header className="space-y-1.5 border-b px-3 py-5 text-center">
         <h1 className="text-2xl font-bold">Design your resume</h1>
         <p className="text-sm text-muted-foreground">

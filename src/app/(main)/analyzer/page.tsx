@@ -63,6 +63,8 @@ export default function AnalyzerPage() {
   >([]);
   const [pdfjsLib, setPdfjsLib] = useState<PDFJSLib | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasStoredResume, setHasStoredResume] = useState<boolean>(false);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
 
   // ----------------------
   // Puter AI ready check
@@ -87,12 +89,84 @@ export default function AnalyzerPage() {
       console.log("✅ PDF.js Loaded:", lib?.version);
     })();
   }, []);
+
+  // ----------------------
+  // Check for resume text from resumes page
+  // ----------------------
+  useEffect(() => {
+    const storedText = sessionStorage.getItem("resumeText");
+    const storedFileName = sessionStorage.getItem("resumeFileName");
+    if (storedText) {
+      setHasStoredResume(true);
+      if (storedFileName) {
+        setResumeFileName(storedFileName);
+      }
+      if (aiReady && !isLoading && !analysis) {
+        // Auto-process the resume text
+        setResumeText(storedText);
+        setPresenceChecklist(buildPresenceChecklist(storedText));
+        setIsLoading(true);
+
+        // Trigger analysis asynchronously
+        (async () => {
+          try {
+            if (!window.puter?.ai?.chat) {
+              throw new Error("Puter AI not ready");
+            }
+
+            const prompt = constants.ANALYZE_RESUME_PROMPT.replace(
+              "{{DOCUMENT_TEXT}}",
+              storedText,
+            );
+            const response = await window.puter.ai.chat(
+              [
+                {
+                  role: "system",
+                  content: "You are an expert resume reviewer.",
+                },
+                { role: "user", content: prompt },
+              ],
+              { model: "gpt-4o" },
+            );
+
+            const result = parseJsonResponse(
+              typeof response === "string"
+                ? response
+                : response.message?.content || "",
+            );
+
+            if (result.error) throw new Error(result.error);
+
+            setAnalysis(result);
+            setErrorMessage(null);
+
+            // Clean up sessionStorage
+            sessionStorage.removeItem("resumeText");
+            sessionStorage.removeItem("resumeFileName");
+            setHasStoredResume(false);
+          } catch (err: any) {
+            setErrorMessage(err.message);
+            sessionStorage.removeItem("resumeText");
+            sessionStorage.removeItem("resumeFileName");
+            setHasStoredResume(false);
+          } finally {
+            setIsLoading(false);
+          }
+        })();
+      }
+    }
+  }, [aiReady, isLoading, analysis]);
+
   const reset = () => {
     setUploadedFile(null);
     setAnalysis(null);
     setResumeText("");
     setPresenceChecklist([]);
     setIsLoading(false);
+    setHasStoredResume(false);
+    setResumeFileName(null);
+    sessionStorage.removeItem("resumeText");
+    sessionStorage.removeItem("resumeFileName");
   };
   // ----------------------
   // Extract text from PDF
@@ -205,7 +279,7 @@ export default function AnalyzerPage() {
               Upload your pdf resume and get instant feedback
             </p>
           </div>
-          {!uploadedFile && (
+          {!uploadedFile && !hasStoredResume && !isLoading && !analysis && (
             <div className="upload-area">
               <div className="upload-zone">
                 <div className="mb-4 text-2xl">&#128196;</div>
@@ -255,7 +329,7 @@ export default function AnalyzerPage() {
               <strong>Error:</strong> {errorMessage}
             </div>
           )}
-          {analysis && uploadedFile && (
+          {analysis && (uploadedFile || resumeText) && (
             <div className="space-y-16 p-4 sm:px-8 lg:px-16">
               <div className="file-info-card">
                 <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
@@ -268,7 +342,9 @@ export default function AnalyzerPage() {
                         Analysis Complete
                       </h3>
                       <p className="break-all text-sm text-slate-300">
-                        {uploadedFile.name}
+                        {uploadedFile?.name ||
+                          resumeFileName ||
+                          "Resume Analysis"}
                       </p>
                     </div>
                   </div>

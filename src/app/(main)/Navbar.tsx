@@ -67,7 +67,7 @@ export default function Navbar() {
             <span className="hamburger-icon"></span>
           </button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-24">
           <ThemeToggle />
           <UserButton
             appearance={{
