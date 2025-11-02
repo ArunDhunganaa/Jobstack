@@ -43,7 +43,7 @@ export async function deleteResume(resumeId: string) {
     }
   }
 
-  // Delete resume (cascade will delete work experiences and educations)
+  // Delete resume (cascade will delete work experiences, projects, and educations)
   await prisma.resume.delete({
     where: { id: resumeId },
   });

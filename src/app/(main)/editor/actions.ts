@@ -11,7 +11,7 @@ export async function saveResume(values: ResumeValues) {
 
   console.log("received values", values);
 
-  const { photo, workExperiences, educations, ...resumeValues } =
+  const { photo, workExperiences, projects, educations, ...resumeValues } =
     resumeSchema.parse(values);
 
   const { userId } = await auth();
@@ -63,6 +63,27 @@ export async function saveResume(values: ResumeValues) {
             endDate: exp.endDate ? new Date(exp.endDate) : undefined,
           })),
         },
+        projects: {
+          deleteMany: {},
+          create: projects
+            ?.filter(
+              (project) =>
+                project.name ||
+                project.description ||
+                project.url ||
+                (project.technologies && project.technologies.length > 0),
+            )
+            .map((project) => ({
+              name: project.name,
+              description: project.description,
+              url: project.url,
+              technologies: project.technologies || [],
+              startDate: project.startDate
+                ? new Date(project.startDate)
+                : undefined,
+              endDate: project.endDate ? new Date(project.endDate) : undefined,
+            })),
+        },
         educations: {
           deleteMany: {},
           create: educations?.map((edu) => ({
@@ -86,6 +107,26 @@ export async function saveResume(values: ResumeValues) {
             startDate: exp.startDate ? new Date(exp.startDate) : undefined,
             endDate: exp.endDate ? new Date(exp.endDate) : undefined,
           })),
+        },
+        projects: {
+          create: projects
+            ?.filter(
+              (project) =>
+                project.name ||
+                project.description ||
+                project.url ||
+                (project.technologies && project.technologies.length > 0),
+            )
+            .map((project) => ({
+              name: project.name,
+              description: project.description,
+              url: project.url,
+              technologies: project.technologies || [],
+              startDate: project.startDate
+                ? new Date(project.startDate)
+                : undefined,
+              endDate: project.endDate ? new Date(project.endDate) : undefined,
+            })),
         },
         educations: {
           create: educations?.map((edu) => ({

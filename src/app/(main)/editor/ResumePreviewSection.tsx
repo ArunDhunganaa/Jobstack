@@ -6,8 +6,6 @@ import { ResumeValues } from "@/lib/validation";
 import { useRef } from "react";
 import BorderStyleButton from "./BorderStyleButton";
 import ColorPicker from "./ColorPicker";
-import DownloadButton from "./DownloadButton";
-import PrintButton from "./PrintButton";
 import TemplateSelector from "./TemplateSelector";
 
 interface ResumePreviewSectionProps {
@@ -49,12 +47,6 @@ export default function ResumePreviewSection({
             template={resumeData.template}
             onChange={(template) => setResumeData({ ...resumeData, template })}
           />
-        </div>
-        <div className="pointer-events-auto">
-          <DownloadButton contentRef={contentRef} />
-        </div>
-        <div className="pointer-events-auto">
-          <PrintButton contentRef={contentRef} />
         </div>
       </div>
       <div className="flex w-full justify-center overflow-y-auto bg-secondary p-4 md:p-6">

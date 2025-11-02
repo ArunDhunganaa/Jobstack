@@ -10,9 +10,10 @@ import {
   Briefcase,
   FileText,
   MoreVertical,
+  Printer,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getUserResumes, deleteResume } from "./actions";
 import { ResumeServerData } from "@/lib/types";
 import { mapToResumeValues } from "@/lib/utils";
@@ -71,14 +72,13 @@ export default function Page() {
     try {
       const resumeValues = mapToResumeValues(resume);
 
-      // Create a temporary container - use opacity instead of visibility for proper dimension calculation
+      // Create a temporary container - position off-screen but visible for proper styling
       tempDiv = document.createElement("div");
       tempDiv.style.position = "fixed";
-      tempDiv.style.left = "0";
+      tempDiv.style.left = "-9999px";
       tempDiv.style.top = "0";
       tempDiv.style.width = "794px";
       tempDiv.style.height = "1123px"; // A4 height in pixels at 96 DPI
-      tempDiv.style.opacity = "0";
       tempDiv.style.pointerEvents = "none";
       tempDiv.style.zIndex = "-1";
       tempDiv.style.overflow = "visible";
@@ -87,8 +87,10 @@ export default function Page() {
       // Create preview container with explicit dimensions
       const previewContainer = document.createElement("div");
       previewContainer.style.width = "794px";
+      previewContainer.style.height = "auto";
       previewContainer.style.minHeight = "1123px";
       previewContainer.style.background = "white";
+      previewContainer.style.position = "relative";
       previewContainer.id = "temp-resume-preview";
       tempDiv.appendChild(previewContainer);
 
@@ -139,8 +141,14 @@ export default function Page() {
         throw new Error("Resume content element not found. Please try again.");
       }
 
-      // Wait a bit more to ensure content is fully rendered
+      // Wait a bit more to ensure content is fully rendered and zoom is calculated
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Wait for ResizeObserver to calculate dimensions (for zoom property)
       await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Ensure fonts are loaded
+      await document.fonts.ready;
 
       // Check if content has dimensions
       if (targetElement.scrollHeight === 0 || targetElement.scrollWidth === 0) {
@@ -148,6 +156,11 @@ export default function Page() {
           "Resume content is not ready. Please wait and try again.",
         );
       }
+
+      // Force multiple reflows to ensure all styles are computed
+      void targetElement.offsetHeight;
+      void previewContainer.offsetHeight;
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const canvas = await html2canvas(targetElement, {
         scale: 2,
@@ -157,8 +170,20 @@ export default function Page() {
         width: targetElement.scrollWidth || 794,
         height: targetElement.scrollHeight,
         allowTaint: false,
-        windowWidth: 794,
+        foreignObjectRendering: false,
+        windowWidth: targetElement.scrollWidth || 794,
         windowHeight: targetElement.scrollHeight,
+        onclone: (clonedDoc) => {
+          // Ensure styles are preserved in cloned document
+          const clonedElement = clonedDoc.querySelector(
+            "#resumePreviewContent",
+          ) as HTMLElement;
+          if (clonedElement) {
+            // Force layout recalculation to ensure zoom and styles are computed
+            void clonedElement.offsetHeight;
+            void clonedElement.offsetWidth;
+          }
+        },
       });
 
       if (!canvas || canvas.width === 0 || canvas.height === 0) {
@@ -240,6 +265,20 @@ export default function Page() {
       });
     }
 
+    if (resume.projects && resume.projects.length > 0) {
+      parts.push("\nProjects:");
+      resume.projects.forEach((project) => {
+        if (project.name) parts.push(`Project Name: ${project.name}`);
+        if (project.url) parts.push(`URL: ${project.url}`);
+        if (project.description)
+          parts.push(`Description: ${project.description}`);
+        if (project.technologies && project.technologies.length > 0) {
+          parts.push(`Technologies: ${project.technologies.join(", ")}`);
+        }
+        parts.push("");
+      });
+    }
+
     if (resume.educations && resume.educations.length > 0) {
       parts.push("\nEducation:");
       resume.educations.forEach((edu) => {
@@ -278,6 +317,194 @@ export default function Page() {
       `${resume.firstName || "resume"}_${resume.lastName || ""}.pdf`,
     );
     router.push("/recommender");
+  };
+
+  const handlePrint = async (resume: ResumeServerData) => {
+    let tempDiv: HTMLDivElement | null = null;
+    let root: any = null;
+
+    try {
+      const resumeValues = mapToResumeValues(resume);
+
+      // Create a temporary container - position off-screen but visible for proper styling
+      tempDiv = document.createElement("div");
+      tempDiv.style.position = "fixed";
+      tempDiv.style.left = "-9999px";
+      tempDiv.style.top = "0";
+      tempDiv.style.width = "794px";
+      tempDiv.style.height = "1123px";
+      tempDiv.style.pointerEvents = "none";
+      tempDiv.style.zIndex = "-1";
+      tempDiv.style.overflow = "visible";
+      document.body.appendChild(tempDiv);
+
+      // Create preview container with explicit dimensions
+      const previewContainer = document.createElement("div");
+      previewContainer.style.width = "794px";
+      previewContainer.style.minHeight = "1123px";
+      previewContainer.style.background = "white";
+      previewContainer.id = "temp-resume-preview-print";
+      tempDiv.appendChild(previewContainer);
+
+      // Render resume preview in the preview container
+      const { createRoot } = await import("react-dom/client");
+      root = createRoot(previewContainer);
+
+      root.render(
+        <ResumePreview resumeData={resumeValues} className="w-full" />,
+      );
+
+      // Wait for React to render and dimensions to be calculated
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Force a reflow to ensure dimensions are calculated
+      void previewContainer.offsetHeight;
+
+      // Wait for images to load if any
+      const images = previewContainer.querySelectorAll("img");
+      if (images.length > 0) {
+        await Promise.all(
+          Array.from(images).map(
+            (img) =>
+              new Promise<void>((resolve) => {
+                if (img.complete) {
+                  resolve();
+                } else {
+                  img.onload = () => resolve();
+                  img.onerror = () => resolve();
+                  setTimeout(() => resolve(), 3000);
+                }
+              }),
+          ),
+        );
+      }
+
+      // Get the actual content element from ResumePreview
+      const resumeContent = previewContainer.querySelector(
+        "#resumePreviewContent",
+      );
+      const targetElement = (resumeContent || previewContainer) as HTMLElement;
+
+      if (!targetElement) {
+        throw new Error("Resume content element not found. Please try again.");
+      }
+
+      // Wait a bit more to ensure content is fully rendered
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Check if content has dimensions
+      if (targetElement.scrollHeight === 0 || targetElement.scrollWidth === 0) {
+        throw new Error(
+          "Resume content is not ready. Please wait and try again.",
+        );
+      }
+
+      // Get all CSS from stylesheets and style tags
+      const allStyles: string[] = [];
+
+      // Extract from stylesheets
+      Array.from(document.styleSheets).forEach((sheet) => {
+        try {
+          if (sheet.href && !sheet.href.startsWith(window.location.origin)) {
+            // Skip cross-origin stylesheets
+            return;
+          }
+          Array.from(sheet.cssRules || sheet.rules || []).forEach((rule) => {
+            try {
+              allStyles.push(rule.cssText);
+            } catch (e) {
+              // Some rules might not be accessible
+            }
+          });
+        } catch (e) {
+          // Cross-origin stylesheets will throw - skip them
+        }
+      });
+
+      // Also include inline style tags from the document
+      Array.from(document.querySelectorAll("style")).forEach((styleTag) => {
+        if (styleTag.textContent) {
+          allStyles.push(styleTag.textContent);
+        }
+      });
+
+      // Create a print window
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Please allow popups to print the resume");
+        return;
+      }
+
+      // Write print styles and content structure with all CSS
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${resume.title || "Resume"}</title>
+            <style>
+              ${allStyles.join("\n")}
+              @page {
+                size: A4;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                background: white;
+                font-family: Inter, Arial, sans-serif;
+              }
+              @media print {
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                #resumePreviewContent {
+                  zoom: 1 !important;
+                  padding: 1.5cm !important;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${targetElement.outerHTML}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+
+      // Wait for the document to load
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Trigger print dialog
+      printWindow.print();
+
+      // Clean up after print dialog closes
+      printWindow.addEventListener("afterprint", () => {
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.close();
+          }
+        }, 100);
+      });
+    } catch (error) {
+      console.error("Error printing resume:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to print resume";
+      alert(`Failed to print resume: ${errorMessage}`);
+    } finally {
+      // Always cleanup
+      try {
+        if (root) {
+          root.unmount();
+        }
+        if (tempDiv?.parentNode) {
+          document.body.removeChild(tempDiv);
+        }
+      } catch (cleanupError) {
+        console.warn("Cleanup error:", cleanupError);
+      }
+    }
   };
 
   if (loading) {
@@ -354,6 +581,10 @@ export default function Page() {
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePrint(resume)}>
+                          <Printer className="mr-2 h-4 w-4" />
+                          Print
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleAnalyze(resume)}>
                           <FileSearch className="mr-2 h-4 w-4" />

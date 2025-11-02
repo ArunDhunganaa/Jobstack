@@ -67,6 +67,7 @@ function ModernTemplate({ resumeData }: ResumeSectionProps) {
       <PersonalInfoHeaderModern resumeData={resumeData} />
       <SummarySectionModern resumeData={resumeData} />
       <WorkExperienceSectionModern resumeData={resumeData} />
+      <ProjectsSectionModern resumeData={resumeData} />
       <EducationSectionModern resumeData={resumeData} />
       <SkillsSectionModern resumeData={resumeData} />
     </div>
@@ -266,6 +267,77 @@ function WorkExperienceSectionModern({ resumeData }: ResumeSectionProps) {
   );
 }
 
+function ProjectsSectionModern({ resumeData }: ResumeSectionProps) {
+  const { projects, colorHex = "#2563eb" } = resumeData;
+
+  const projectsNotEmpty = projects?.filter(
+    (project) => Object.values(project).filter(Boolean).length > 0,
+  );
+
+  if (!projectsNotEmpty?.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="resume-modern-section-title" style={{ color: colorHex }}>
+        Projects
+      </div>
+      <div className="space-y-4">
+        {projectsNotEmpty.map((project, index) => (
+          <div key={index} className="resume-modern-card break-inside-avoid">
+            <div className="mb-2 flex items-start justify-between">
+              <div className="flex-1">
+                <h3
+                  className="mb-1.5 text-base font-bold"
+                  style={{ color: colorHex }}
+                >
+                  {project.name}
+                </h3>
+                {project.url && (
+                  <a
+                    href={project.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    {project.url.length > 40
+                      ? `${project.url.substring(0, 40)}...`
+                      : project.url}
+                  </a>
+                )}
+              </div>
+              {project.startDate && (
+                <span className="text-gray-500 ml-4 whitespace-nowrap text-sm font-medium">
+                  {formatDate(project.startDate, "MMM yyyy")} -{" "}
+                  {project.endDate
+                    ? formatDate(project.endDate, "MMM yyyy")
+                    : "Present"}
+                </span>
+              )}
+            </div>
+            {project.description && (
+              <div className="text-gray-600 mt-2.5 whitespace-pre-line text-sm leading-relaxed">
+                {project.description}
+              </div>
+            )}
+            {project.technologies && project.technologies.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {project.technologies.map((tech, techIndex) => (
+                  <span
+                    key={techIndex}
+                    className="text-gray-500 bg-gray-100 rounded px-2 py-0.5 text-xs font-medium"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EducationSectionModern({ resumeData }: ResumeSectionProps) {
   const { educations, colorHex = "#2563eb" } = resumeData;
 
@@ -357,6 +429,7 @@ function ClassicTemplate({ resumeData }: ResumeSectionProps) {
       <div className="resume-classic-content flex-1 space-y-5">
         <SummarySectionClassic resumeData={resumeData} />
         <WorkExperienceSectionClassic resumeData={resumeData} />
+        <ProjectsSectionClassic resumeData={resumeData} />
         <EducationSectionClassic resumeData={resumeData} />
       </div>
     </div>
@@ -533,6 +606,78 @@ function WorkExperienceSectionClassic({ resumeData }: ResumeSectionProps) {
   );
 }
 
+function ProjectsSectionClassic({ resumeData }: ResumeSectionProps) {
+  const { projects, colorHex = "#1e293b" } = resumeData;
+
+  const projectsNotEmpty = projects?.filter(
+    (project) => Object.values(project).filter(Boolean).length > 0,
+  );
+
+  if (!projectsNotEmpty?.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="resume-classic-section-title"
+        style={{ borderColor: colorHex, color: colorHex }}
+      >
+        Projects
+      </div>
+      <div className="space-y-3">
+        {projectsNotEmpty.map((project, index) => (
+          <div key={index} className="resume-classic-item break-inside-avoid">
+            <div
+              className="resume-classic-item-title"
+              style={{ color: colorHex }}
+            >
+              {project.name}
+            </div>
+            <div className="resume-classic-item-subtitle">
+              {project.url && (
+                <a
+                  href={project.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  {project.url.length > 50
+                    ? `${project.url.substring(0, 50)}...`
+                    : project.url}
+                </a>
+              )}
+              {project.startDate && (
+                <span className="ml-2">
+                  • {formatDate(project.startDate, "MMM yyyy")} -{" "}
+                  {project.endDate
+                    ? formatDate(project.endDate, "MMM yyyy")
+                    : "Present"}
+                </span>
+              )}
+            </div>
+            {project.description && (
+              <div className="resume-classic-item-description whitespace-pre-line">
+                {project.description}
+              </div>
+            )}
+            {project.technologies && project.technologies.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {project.technologies.map((tech, techIndex) => (
+                  <span
+                    key={techIndex}
+                    className="resume-classic-skill-tag bg-gray-100 text-gray-700"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EducationSectionClassic({ resumeData }: ResumeSectionProps) {
   const { educations, colorHex = "#1e293b" } = resumeData;
 
@@ -613,6 +758,7 @@ function MinimalTemplate({ resumeData }: ResumeSectionProps) {
       <PersonalInfoHeaderMinimal resumeData={resumeData} />
       <SummarySectionMinimal resumeData={resumeData} />
       <WorkExperienceSectionMinimal resumeData={resumeData} />
+      <ProjectsSectionMinimal resumeData={resumeData} />
       <EducationSectionMinimal resumeData={resumeData} />
       <SkillsSectionMinimal resumeData={resumeData} />
     </div>
@@ -733,6 +879,79 @@ function WorkExperienceSectionMinimal({ resumeData }: ResumeSectionProps) {
           {exp.description && (
             <div className="resume-minimal-item-description whitespace-pre-line">
               {exp.description}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProjectsSectionMinimal({ resumeData }: ResumeSectionProps) {
+  const { projects, colorHex = "#000000" } = resumeData;
+
+  const projectsNotEmpty = projects?.filter(
+    (project) => Object.values(project).filter(Boolean).length > 0,
+  );
+
+  if (!projectsNotEmpty?.length) return null;
+
+  return (
+    <div className="resume-minimal-section space-y-4">
+      <div
+        className="resume-minimal-section-title"
+        style={{ borderColor: colorHex, color: colorHex }}
+      >
+        Projects
+      </div>
+      {projectsNotEmpty.map((project, index) => (
+        <div key={index} className="resume-minimal-item break-inside-avoid">
+          <div className="resume-minimal-item-header">
+            <div className="flex-1">
+              <div
+                className="resume-minimal-item-title"
+                style={{ color: colorHex }}
+              >
+                {project.name}
+              </div>
+              {project.url && (
+                <a
+                  href={project.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="resume-minimal-item-company text-blue-600 hover:underline"
+                >
+                  {project.url.length > 50
+                    ? `${project.url.substring(0, 50)}...`
+                    : project.url}
+                </a>
+              )}
+            </div>
+            {project.startDate && (
+              <span className="resume-minimal-item-date">
+                {formatDate(project.startDate, "MMM yyyy")} -{" "}
+                {project.endDate
+                  ? formatDate(project.endDate, "MMM yyyy")
+                  : "Present"}
+              </span>
+            )}
+          </div>
+          {project.description && (
+            <div className="resume-minimal-item-description whitespace-pre-line">
+              {project.description}
+            </div>
+          )}
+          {project.technologies && project.technologies.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {project.technologies.map((tech, techIndex) => (
+                <span
+                  key={techIndex}
+                  className="resume-minimal-skill"
+                  style={{ borderColor: colorHex, color: colorHex }}
+                >
+                  {tech}
+                </span>
+              ))}
             </div>
           )}
         </div>

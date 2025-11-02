@@ -52,6 +52,27 @@ export type WorkExperience = NonNullable<
   z.infer<typeof workExperienceSchema>["workExperiences"]
 >[number];
 
+export const projectSchema = z.object({
+  projects: z
+    .array(
+      z.object({
+        name: optionalString,
+        description: optionalString,
+        url: optionalString,
+        technologies: z.array(z.string().trim()).optional(),
+        startDate: optionalString,
+        endDate: optionalString,
+      }),
+    )
+    .optional(),
+});
+
+export type ProjectValues = z.infer<typeof projectSchema>;
+
+export type Project = NonNullable<
+  z.infer<typeof projectSchema>["projects"]
+>[number];
+
 export const educationSchema = z.object({
   educations: z
     .array(
@@ -83,6 +104,7 @@ export const resumeSchema = z.object({
   ...generalInfoSchema.shape,
   ...personalInfoSchema.shape,
   ...workExperienceSchema.shape,
+  ...projectSchema.shape,
   ...educationSchema.shape,
   ...skillsSchema.shape,
   ...summarySchema.shape,
