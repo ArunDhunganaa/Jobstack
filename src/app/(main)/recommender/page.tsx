@@ -4,6 +4,16 @@ import Script from "next/script";
 import { loadPdfJs } from "@/lib/utils";
 import constants, { buildPresenceChecklist } from "@/lib/constant";
 
+declare global {
+  interface Window {
+    puter?: {
+      ai?: {
+        chat?: any;
+      };
+    };
+  }
+}
+
 type PDFJSLib = typeof import("pdfjs-dist");
 
 interface Job {
@@ -23,6 +33,7 @@ export default function JobRecommenderPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasStoredResume, setHasStoredResume] = useState<boolean>(false);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -47,35 +58,69 @@ export default function JobRecommenderPage() {
   // ----------------------
   useEffect(() => {
     const storedText = sessionStorage.getItem("resumeText");
+    const storedFileName = sessionStorage.getItem("resumeFileName");
     if (storedText) {
       setHasStoredResume(true);
+      if (storedFileName) {
+        setResumeFileName(storedFileName);
+      }
       if (aiReady && !isLoading && jobs.length === 0) {
         // Auto-process the resume text
         setResumeText(storedText);
         setIsLoading(true);
+        setErrorMessage(null);
 
-        // Extract keywords and fetch jobs
-        extractKeywords(storedText)
-          .then((keywords) => {
+        // Trigger job recommendation asynchronously
+        (async () => {
+          try {
+            if (!window.puter?.ai?.chat) {
+              throw new Error(
+                "AI service is not ready. Please wait a moment and try again.",
+              );
+            }
+
+            if (!storedText || storedText.trim().length < 50) {
+              throw new Error(
+                "Resume text is too short or empty. Please ensure your resume has sufficient content.",
+              );
+            }
+
+            // Validate if it's a proper resume
+            await validateResume(storedText);
+
+            // Extract keywords and fetch jobs
+            const keywords = await extractKeywords(storedText);
             console.log("Extracted keywords:", keywords);
-            return fetchJobs(keywords);
-          })
-          .then((fetchedJobs) => {
+
+            if (!keywords || keywords.length === 0) {
+              throw new Error(
+                "Failed to extract keywords from resume. Please try again.",
+              );
+            }
+
+            const fetchedJobs = await fetchJobs(keywords);
             const rankedJobs = rankJobs(storedText, fetchedJobs);
             setJobs(rankedJobs);
-          })
-          .catch((err: any) => {
-            console.error(err);
-            setErrorMessage(err.message);
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
+            setErrorMessage(null);
 
-        // Clean up sessionStorage
-        sessionStorage.removeItem("resumeText");
-        sessionStorage.removeItem("resumeFileName");
-        setHasStoredResume(false);
+            // Clean up sessionStorage
+            sessionStorage.removeItem("resumeText");
+            sessionStorage.removeItem("resumeFileName");
+            setHasStoredResume(false);
+          } catch (err: any) {
+            console.error("Job recommendation error:", err);
+            const errorMessage =
+              err instanceof Error
+                ? err.message
+                : "An unexpected error occurred during job recommendation. Please try again.";
+            setErrorMessage(errorMessage);
+            sessionStorage.removeItem("resumeText");
+            sessionStorage.removeItem("resumeFileName");
+            setHasStoredResume(false);
+          } finally {
+            setIsLoading(false);
+          }
+        })();
       }
     }
   }, [aiReady, isLoading, jobs.length]);
@@ -86,6 +131,8 @@ export default function JobRecommenderPage() {
     setJobs([]);
     setIsLoading(false);
     setHasStoredResume(false);
+    setResumeFileName(null);
+    setErrorMessage(null);
     sessionStorage.removeItem("resumeText");
     sessionStorage.removeItem("resumeFileName");
   };
@@ -104,48 +151,247 @@ export default function JobRecommenderPage() {
     return texts.join("\n").trim();
   };
 
-  const extractKeywords = async (text: string): Promise<string[]> => {
-    if (!window.puter?.ai?.chat) throw new Error("AI not ready");
-    const prompt = `
-      Extract 5-8 most relevant professional keywords from this resume text.
-      Respond only with a JSON array of strings. Text:
-      """${text}"""
-    `;
-    const response = await window.puter.ai.chat(
-      [{ role: "user", content: prompt }],
-      {
-        model: "gpt-4o-mini",
-      },
+  // ----------------------
+  // Validate if PDF is a proper resume
+  // ----------------------
+  const validateResume = async (text: string): Promise<void> => {
+    if (!window.puter?.ai?.chat) {
+      throw new Error(
+        "AI service is not ready. Please wait a moment and try again.",
+      );
+    }
+
+    if (!text || text.trim().length < 50) {
+      throw new Error(
+        "Resume text is too short or empty. Please ensure your resume has sufficient content.",
+      );
+    }
+
+    // Quick validation check for resume-like content
+    const resumeKeywords = [
+      "experience",
+      "education",
+      "skills",
+      "summary",
+      "work",
+      "employment",
+      "position",
+      "company",
+      "degree",
+      "university",
+      "college",
+      "email",
+      "phone",
+      "contact",
+    ];
+
+    const lowerText = text.toLowerCase();
+    const foundKeywords = resumeKeywords.filter((keyword) =>
+      lowerText.includes(keyword),
     );
+
+    if (foundKeywords.length < 3) {
+      throw new Error(
+        "This document does not appear to be a resume. Please upload a proper resume containing professional experience, education, and skills sections.",
+      );
+    }
+
+    // Use AI to validate more thoroughly
+    const validationPrompt = `Analyze this document and determine if it is a resume/CV. Look for:
+- Professional experience, work history, or employment information
+- Education background, degrees, or academic information
+- Skills, qualifications, or professional competencies
+- Contact information and personal details
+
+Respond with ONLY a JSON object in this format:
+{
+  "isResume": true or false,
+  "reason": "brief explanation"
+}
+
+Document text:
+"""${text.substring(0, 2000)}"""`;
+
     try {
-      const match = response.message?.content.match(/\[.*\]/s);
-      return match ? JSON.parse(match[0]) : [];
-    } catch {
-      return [];
+      const response = await window.puter.ai.chat(
+        [{ role: "user", content: validationPrompt }],
+        { model: "gpt-4o-mini" },
+      );
+
+      const responseContent =
+        typeof response === "string"
+          ? response
+          : response.message?.content || "";
+
+      const jsonMatch = responseContent.match(/{[\s\S]*}/);
+      if (jsonMatch) {
+        const validation = JSON.parse(jsonMatch[0]);
+        if (!validation.isResume) {
+          throw new Error(
+            validation.reason ||
+              "This document does not appear to be a resume. Please upload a proper resume containing professional experience, education, and skills sections.",
+          );
+        }
+      }
+    } catch (err: any) {
+      // If it's an error about not being a resume, throw it
+      if (err.message && err.message.includes("not appear to be a resume")) {
+        throw err;
+      }
+      // For other validation errors, log warning but allow to proceed
+      // The full extraction will catch non-resume documents anyway
+      console.warn("Resume validation warning:", err);
+    }
+  };
+
+  // ----------------------
+  // Extract keywords from resume
+  // ----------------------
+  const extractKeywords = async (text: string): Promise<string[]> => {
+    try {
+      if (!window.puter?.ai?.chat) {
+        throw new Error(
+          "AI service is not ready. Please wait a moment and try again.",
+        );
+      }
+
+      if (!text || text.trim().length < 50) {
+        throw new Error(
+          "Resume text is too short. Please upload a complete resume with sufficient content.",
+        );
+      }
+
+      const prompt = constants.JOB_RECOMMENDER_PROMPT.replace(
+        "{{DOCUMENT_TEXT}}",
+        text.substring(0, 10000), // Limit text length to prevent token limits
+      );
+
+      const response = await window.puter.ai.chat(
+        [
+          {
+            role: "system",
+            content:
+              "You are an expert career advisor and job matching specialist with extensive experience in resume analysis and job recommendations. Extract relevant keywords accurately and efficiently.",
+          },
+          { role: "user", content: prompt },
+        ],
+        {
+          model: "gpt-4o",
+          temperature: 0.3, // Lower temperature for more consistent results
+        },
+      );
+
+      if (!response) {
+        throw new Error(
+          "No response received from AI service. Please try again.",
+        );
+      }
+
+      const responseContent =
+        typeof response === "string"
+          ? response
+          : response.message?.content || "";
+
+      if (!responseContent || responseContent.trim().length === 0) {
+        throw new Error("Empty response from AI service. Please try again.");
+      }
+
+      // Check for error in response
+      const errorMatch = responseContent.match(/{"error"\s*:\s*"([^"]+)"/);
+      if (errorMatch) {
+        throw new Error(errorMatch[1]);
+      }
+
+      // Try to find JSON array in the response
+      const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error(
+          "No valid keyword array found in AI response. Please try again.",
+        );
+      }
+
+      const keywords = JSON.parse(jsonMatch[0]);
+
+      if (!Array.isArray(keywords) || keywords.length === 0) {
+        throw new Error("Invalid keyword extraction result. Please try again.");
+      }
+
+      return keywords;
+    } catch (err: any) {
+      console.error("Keyword extraction error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred during keyword extraction. Please try again.";
+      throw new Error(errorMessage);
     }
   };
 
   const fetchJobs = async (keywords: string[]): Promise<Job[]> => {
-    const query = keywords.slice(0, 3).join(" ");
-    const res = await fetch(
-      `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&num_pages=1`,
-      {
-        headers: {
-          "x-rapidapi-key": process.env.NEXT_PUBLIC_RAPIDAPI_KEY || "",
-          "x-rapidapi-host": "jsearch.p.rapidapi.com",
+    try {
+      if (!keywords || keywords.length === 0) {
+        throw new Error("No keywords provided for job search.");
+      }
+
+      const query = keywords.slice(0, 3).join(" ");
+      if (!query || query.trim().length === 0) {
+        throw new Error("Invalid search query generated from keywords.");
+      }
+
+      const apiKey = process.env.NEXT_PUBLIC_RAPIDAPI_KEY;
+      if (!apiKey) {
+        throw new Error(
+          "Job search API key is not configured. Please contact support.",
+        );
+      }
+
+      const res = await fetch(
+        `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&num_pages=1`,
+        {
+          headers: {
+            "x-rapidapi-key": apiKey,
+            "x-rapidapi-host": "jsearch.p.rapidapi.com",
+          },
         },
-      },
-    );
-    const data = await res.json();
-    return (
-      data.data?.map((job: any) => ({
-        title: job.job_title,
-        company: job.employer_name,
+      );
+
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch jobs: ${res.status} ${res.statusText}. Please try again.`,
+        );
+      }
+
+      const data = await res.json();
+
+      if (!data || !data.data || !Array.isArray(data.data)) {
+        throw new Error(
+          "Invalid response from job search API. Please try again.",
+        );
+      }
+
+      const jobs = data.data.map((job: any) => ({
+        title: job.job_title || "Job Title Not Available",
+        company: job.employer_name || "Company Not Available",
         location: job.job_city || "Remote",
-        description: job.job_description,
-        apply_link: job.job_apply_link,
-      })) || []
-    );
+        description: job.job_description || "No description available",
+        apply_link: job.job_apply_link || "#",
+      }));
+
+      if (jobs.length === 0) {
+        throw new Error(
+          "No jobs found matching your resume. Try updating your resume with more relevant skills or experience.",
+        );
+      }
+
+      return jobs;
+    } catch (err: any) {
+      console.error("Job fetching error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while fetching jobs. Please try again.";
+      throw new Error(errorMessage);
+    }
   };
 
   // Simple TF-IDF–style cosine similarity for basic ranking
@@ -168,6 +414,9 @@ export default function JobRecommenderPage() {
     // Return sorted array
     return scores.sort((a, b) => b.score - a.score);
   };
+  // ----------------------
+  // Handle file upload
+  // ----------------------
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || file.type !== "application/pdf") {
@@ -178,18 +427,39 @@ export default function JobRecommenderPage() {
     setUploadedFile(file);
     setIsLoading(true);
     setJobs([]);
+    setResumeText("");
+    setErrorMessage(null);
+
     try {
       const text = await extractPDFText(file);
+
+      // Validate if it's a proper resume
+      await validateResume(text);
+
       setResumeText(text);
+
+      // Extract keywords
       const keywords = await extractKeywords(text);
       console.log("Extracted keywords:", keywords);
 
+      if (!keywords || keywords.length === 0) {
+        throw new Error(
+          "Failed to extract keywords from resume. Please try again.",
+        );
+      }
+
+      // Fetch jobs
       const fetchedJobs = await fetchJobs(keywords);
       const rankedJobs = rankJobs(text, fetchedJobs);
       setJobs(rankedJobs);
+      setErrorMessage(null);
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message);
+      console.error("File upload error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred. Please try again.";
+      setErrorMessage(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -199,9 +469,9 @@ export default function JobRecommenderPage() {
     <>
       <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
       <div className="dark:bg-main-gradient flex min-h-screen items-center justify-center pb-50 pt-[180px]">
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="container max-w-5xl">
           <div className="mb-6 text-center">
-            <h1 className="mb-2 bg-gradient-to-r from-cyan-400 via-teal-500 to-sky-500 bg-clip-text text-5xl font-light text-transparent">
+            <h1 className="mb-2 bg-gradient-to-r from-cyan-400 via-teal-500 to-sky-500 bg-clip-text text-3xl font-light text-transparent lg:text-5xl">
               Job Recommender
             </h1>
             <p className="text-sm text-slate-800 dark:text-slate-300">
@@ -237,7 +507,9 @@ export default function JobRecommenderPage() {
           {isLoading && (
             <div className="mt-8 text-center">
               <div className="loading-spinner mx-auto mb-4"></div>
-              <p className="text-lg text-slate-200">Analyzing your resume...</p>
+              <p className="text-lg text-slate-200">
+                Analyzing your resume and finding job recommendations...
+              </p>
             </div>
           )}
 
@@ -247,7 +519,7 @@ export default function JobRecommenderPage() {
             </div>
           )}
 
-          {jobs.length > 0 && (
+          {jobs.length > 0 && (uploadedFile || resumeText) && (
             <>
               <div className="mt-24 grid gap-24 sm:grid-cols-2 lg:grid-cols-3">
                 {jobs.map((job, i) => (
@@ -268,6 +540,7 @@ export default function JobRecommenderPage() {
                     <a
                       href={job.apply_link}
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="text-md text-cyan-800 underline dark:text-cyan-400"
                     >
                       Apply Now
@@ -279,7 +552,7 @@ export default function JobRecommenderPage() {
                 <button
                   type="button"
                   onClick={reset}
-                  className="cursor-pointer; rounded-xl border border-red-500/30 bg-red-500 px-24 py-12 text-lg text-red-100 transition hover:bg-red-500/30 dark:bg-red-500/20 dark:text-red-300"
+                  className="cursor-pointer rounded-xl border border-red-500/30 bg-red-500 px-24 py-12 text-lg text-red-100 transition hover:bg-red-500/30 dark:bg-red-500/20 dark:text-red-300"
                 >
                   Reset
                 </button>

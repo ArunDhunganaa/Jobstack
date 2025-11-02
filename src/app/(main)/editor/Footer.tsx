@@ -10,6 +10,8 @@ interface FooterProps {
   showSmResumePreview: boolean;
   setShowSmResumePreview: (show: boolean) => void;
   isSaving: boolean;
+  onCancel: () => void;
+  showCancel: boolean;
 }
 
 export default function Footer({
@@ -18,6 +20,8 @@ export default function Footer({
   showSmResumePreview,
   setShowSmResumePreview,
   isSaving,
+  onCancel,
+  showCancel,
 }: FooterProps) {
   const previousStep = steps.find(
     (_, index) => steps[index + 1]?.key === currentStep,
@@ -58,9 +62,14 @@ export default function Footer({
         >
           {showSmResumePreview ? <PenLineIcon /> : <FileUserIcon />}
         </Button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-12">
+          {showCancel && (
+            <Button variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
           <Button variant="secondary" asChild>
-            <Link href="/resumes">Close</Link>
+            <Link href="/resumes">Save & close</Link>
           </Button>
           <p
             className={cn(

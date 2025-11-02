@@ -27,31 +27,41 @@ export default function ResumePreviewSection({
     <div
       className={cn("group relative hidden w-full md:flex md:w-1/2", className)}
     >
-      <div className="absolute left-1 top-1 flex flex-none flex-col gap-3 opacity-50 transition-opacity group-hover:opacity-100 lg:left-3 lg:top-3 xl:opacity-100">
-        <ColorPicker
-          color={resumeData.colorHex}
-          onChange={(color) =>
-            setResumeData({ ...resumeData, colorHex: color.hex })
-          }
-        />
-        <BorderStyleButton
-          borderStyle={resumeData.borderStyle}
-          onChange={(borderStyle) =>
-            setResumeData({ ...resumeData, borderStyle })
-          }
-        />
-        <TemplateSelector
-          template={resumeData.template}
-          onChange={(template) => setResumeData({ ...resumeData, template })}
-        />
-        <DownloadButton contentRef={contentRef} />
-        <PrintButton contentRef={contentRef} />
+      <div className="pointer-events-none absolute left-1 top-1 z-10 flex flex-none flex-col gap-3 opacity-50 transition-opacity group-hover:opacity-100 lg:left-3 lg:top-3 xl:opacity-100">
+        <div className="pointer-events-auto">
+          <ColorPicker
+            color={resumeData.colorHex}
+            onChange={(color) =>
+              setResumeData({ ...resumeData, colorHex: color.hex })
+            }
+          />
+        </div>
+        <div className="pointer-events-auto">
+          <BorderStyleButton
+            borderStyle={resumeData.borderStyle}
+            onChange={(borderStyle) =>
+              setResumeData({ ...resumeData, borderStyle })
+            }
+          />
+        </div>
+        <div className="pointer-events-auto">
+          <TemplateSelector
+            template={resumeData.template}
+            onChange={(template) => setResumeData({ ...resumeData, template })}
+          />
+        </div>
+        <div className="pointer-events-auto">
+          <DownloadButton contentRef={contentRef} />
+        </div>
+        <div className="pointer-events-auto">
+          <PrintButton contentRef={contentRef} />
+        </div>
       </div>
-      <div className="flex w-full justify-center overflow-y-auto bg-secondary p-3">
+      <div className="flex w-full justify-center overflow-y-auto bg-secondary p-4 md:p-6">
         <ResumePreview
           resumeData={resumeData}
           contentRef={contentRef}
-          className="max-w-2xl shadow-md"
+          className="max-w-2xl shadow-lg"
         />
       </div>
     </div>

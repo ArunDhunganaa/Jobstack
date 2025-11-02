@@ -111,31 +111,65 @@ export default function AnalyzerPage() {
         (async () => {
           try {
             if (!window.puter?.ai?.chat) {
-              throw new Error("Puter AI not ready");
+              throw new Error(
+                "AI service is not ready. Please wait a moment and try again.",
+              );
             }
+
+            if (!storedText || storedText.trim().length < 50) {
+              throw new Error(
+                "Resume text is too short or empty. Please ensure your resume has sufficient content.",
+              );
+            }
+
+            // Validate if it's a proper resume
+            await validateResume(storedText);
 
             const prompt = constants.ANALYZE_RESUME_PROMPT.replace(
               "{{DOCUMENT_TEXT}}",
-              storedText,
+              storedText.substring(0, 10000), // Limit text length to prevent token limits
             );
+
             const response = await window.puter.ai.chat(
               [
                 {
                   role: "system",
-                  content: "You are an expert resume reviewer.",
+                  content:
+                    "You are an expert resume reviewer and career advisor with extensive experience in ATS systems and resume optimization.",
                 },
                 { role: "user", content: prompt },
               ],
-              { model: "gpt-4o" },
+              {
+                model: "gpt-4o",
+                temperature: 0.3, // Lower temperature for more consistent results
+              },
             );
 
-            const result = parseJsonResponse(
+            if (!response) {
+              throw new Error("No response received from AI service.");
+            }
+
+            const responseContent =
               typeof response === "string"
                 ? response
-                : response.message?.content || "",
-            );
+                : response.message?.content || "";
 
-            if (result.error) throw new Error(result.error);
+            if (!responseContent || responseContent.trim().length === 0) {
+              throw new Error(
+                "Empty response from AI service. Please try again.",
+              );
+            }
+
+            const result = parseJsonResponse(responseContent);
+
+            if (result.error) {
+              throw new Error(result.error);
+            }
+
+            // Validate required fields
+            if (!result.overallScore || !result.performanceMetrics) {
+              throw new Error("Incomplete analysis result. Please try again.");
+            }
 
             setAnalysis(result);
             setErrorMessage(null);
@@ -145,7 +179,12 @@ export default function AnalyzerPage() {
             sessionStorage.removeItem("resumeFileName");
             setHasStoredResume(false);
           } catch (err: any) {
-            setErrorMessage(err.message);
+            console.error("Analysis error:", err);
+            const errorMessage =
+              err instanceof Error
+                ? err.message
+                : "An unexpected error occurred during analysis. Please try again.";
+            setErrorMessage(errorMessage);
             sessionStorage.removeItem("resumeText");
             sessionStorage.removeItem("resumeFileName");
             setHasStoredResume(false);
@@ -173,10 +212,8 @@ export default function AnalyzerPage() {
   // ----------------------
   const extractPDFText = async (file: File): Promise<string> => {
     if (!pdfjsLib) throw new Error("PDF.js not loaded yet");
-
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
     const texts = await Promise.all(
       Array.from({ length: pdf.numPages }, async (_, i) => {
         const page = await pdf.getPage(i + 1);
@@ -188,21 +225,148 @@ export default function AnalyzerPage() {
   };
 
   // ----------------------
+  // Validate if PDF is a proper resume
+  // ----------------------
+  const validateResume = async (text: string): Promise<void> => {
+    if (!window.puter?.ai?.chat) {
+      throw new Error(
+        "AI service is not ready. Please wait a moment and try again.",
+      );
+    }
+
+    if (!text || text.trim().length < 50) {
+      throw new Error(
+        "Resume text is too short or empty. Please ensure your resume has sufficient content.",
+      );
+    }
+
+    // Quick validation check for resume-like content
+    const resumeKeywords = [
+      "experience",
+      "education",
+      "skills",
+      "summary",
+      "work",
+      "employment",
+      "position",
+      "company",
+      "degree",
+      "university",
+      "college",
+      "email",
+      "phone",
+      "contact",
+    ];
+
+    const lowerText = text.toLowerCase();
+    const foundKeywords = resumeKeywords.filter((keyword) =>
+      lowerText.includes(keyword),
+    );
+
+    if (foundKeywords.length < 3) {
+      throw new Error(
+        "This document does not appear to be a resume. Please upload a proper resume containing professional experience, education, and skills sections.",
+      );
+    }
+
+    // Use AI to validate more thoroughly
+    const validationPrompt = `Analyze this document and determine if it is a resume/CV. Look for:
+- Professional experience, work history, or employment information
+- Education background, degrees, or academic information
+- Skills, qualifications, or professional competencies
+- Contact information and personal details
+
+Respond with ONLY a JSON object in this format:
+{
+  "isResume": true or false,
+  "reason": "brief explanation"
+}
+
+Document text:
+"""${text.substring(0, 2000)}"""`;
+
+    try {
+      const response = await window.puter.ai.chat(
+        [{ role: "user", content: validationPrompt }],
+        { model: "gpt-4o-mini" },
+      );
+
+      const responseContent =
+        typeof response === "string"
+          ? response
+          : response.message?.content || "";
+
+      const jsonMatch = responseContent.match(/{[\s\S]*}/);
+      if (jsonMatch) {
+        const validation = JSON.parse(jsonMatch[0]);
+        if (!validation.isResume) {
+          throw new Error(
+            validation.reason ||
+              "This document does not appear to be a resume. Please upload a proper resume containing professional experience, education, and skills sections.",
+          );
+        }
+      }
+    } catch (err: any) {
+      // If it's an error about not being a resume, throw it
+      if (err.message && err.message.includes("not appear to be a resume")) {
+        throw err;
+      }
+      // For other validation errors, log warning but allow to proceed
+      // The full analysis will catch non-resume documents anyway
+      console.warn("Resume validation warning:", err);
+    }
+  };
+
+  // ----------------------
   // Parse AI JSON response
   // ----------------------
   const parseJsonResponse = (reply: string): AnalysisReport => {
     try {
-      const match = reply.match(/{.*}/s);
-      const parsed: AnalysisReport = match
-        ? JSON.parse(match[0])
-        : ({} as AnalysisReport);
-      if (!parsed.overallScore && !parsed.error) {
-        throw new Error("Invalid AI response");
+      if (!reply || reply.trim().length === 0) {
+        throw new Error("Empty response from AI service");
       }
-      console.log(parsed);
+
+      // Try to find JSON object in the response
+      const jsonMatch = reply.match(/{[\s\S]*}/);
+
+      if (!jsonMatch || jsonMatch.length === 0) {
+        throw new Error("No valid JSON found in AI response");
+      }
+
+      const parsed: AnalysisReport = JSON.parse(jsonMatch[0]);
+
+      // Validate required fields
+      if (!parsed.overallScore && !parsed.error) {
+        throw new Error("Invalid AI response: missing overallScore");
+      }
+
+      // Ensure arrays exist
+      parsed.strengths = parsed.strengths || [];
+      parsed.improvements = parsed.improvements || [];
+      parsed.keywords = parsed.keywords || [];
+      parsed.actionItems = parsed.actionItems || [];
+      parsed.proTips = parsed.proTips || [];
+      parsed.atsChecklist = parsed.atsChecklist || [];
+      parsed.performanceMetrics = parsed.performanceMetrics || {
+        formatting: 5,
+        contentQuality: 5,
+        keywordUsage: 5,
+        atsCompatibility: 5,
+        quantifiableAchievements: 5,
+      };
+
+      console.log("Parsed analysis:", parsed);
       return parsed;
     } catch (err: any) {
-      throw new Error(`Failed to parse AI response: ${err.message}`);
+      console.error("JSON parsing error:", err);
+      if (err instanceof SyntaxError) {
+        throw new Error(
+          "Failed to parse AI response: Invalid JSON format. Please try again.",
+        );
+      }
+      throw new Error(
+        `Failed to parse AI response: ${err.message || "Unknown error"}`,
+      );
     }
   };
 
@@ -210,25 +374,74 @@ export default function AnalyzerPage() {
   // Call Puter AI to analyze resume
   // ----------------------
   const analyzeResume = async (text: string): Promise<AnalysisReport> => {
-    if (!window.puter?.ai?.chat) throw new Error("Puter AI not ready");
+    try {
+      if (!window.puter?.ai?.chat) {
+        throw new Error(
+          "AI service is not ready. Please wait a moment and try again.",
+        );
+      }
 
-    const prompt = constants.ANALYZE_RESUME_PROMPT.replace(
-      "{{DOCUMENT_TEXT}}",
-      text,
-    );
-    const response = await window.puter.ai.chat(
-      [
-        { role: "system", content: "You are an expert resume reviewer." },
-        { role: "user", content: prompt },
-      ],
-      { model: "gpt-4o" },
-    );
-    const result = parseJsonResponse(
-      typeof response === "string" ? response : response.message?.content || "",
-    );
+      if (!text || text.trim().length < 50) {
+        throw new Error(
+          "Resume text is too short. Please upload a complete resume with sufficient content.",
+        );
+      }
 
-    if (result.error) throw new Error(result.error);
-    return result;
+      const prompt = constants.ANALYZE_RESUME_PROMPT.replace(
+        "{{DOCUMENT_TEXT}}",
+        text.substring(0, 10000), // Limit text length to prevent token limits
+      );
+
+      const response = await window.puter.ai.chat(
+        [
+          {
+            role: "system",
+            content:
+              "You are an expert resume reviewer and career advisor with extensive experience in ATS systems and resume optimization. Provide detailed, actionable feedback.",
+          },
+          { role: "user", content: prompt },
+        ],
+        {
+          model: "gpt-4o",
+          temperature: 0.3, // Lower temperature for more consistent results
+        },
+      );
+
+      if (!response) {
+        throw new Error(
+          "No response received from AI service. Please try again.",
+        );
+      }
+
+      const responseContent =
+        typeof response === "string"
+          ? response
+          : response.message?.content || "";
+
+      if (!responseContent || responseContent.trim().length === 0) {
+        throw new Error("Empty response from AI service. Please try again.");
+      }
+
+      const result = parseJsonResponse(responseContent);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Validate required fields
+      if (!result.overallScore || !result.performanceMetrics) {
+        throw new Error("Incomplete analysis result. Please try again.");
+      }
+
+      return result;
+    } catch (err: any) {
+      console.error("Analysis error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred during analysis. Please try again.";
+      throw new Error(errorMessage);
+    }
   };
 
   // ----------------------
@@ -237,7 +450,8 @@ export default function AnalyzerPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || file.type !== "application/pdf") {
-      return alert("Please upload a PDF file only.");
+      alert("Please upload a PDF file only.");
+      return;
     }
 
     setUploadedFile(file);
@@ -245,9 +459,14 @@ export default function AnalyzerPage() {
     setAnalysis(null);
     setResumeText("");
     setPresenceChecklist([]);
+    setErrorMessage(null);
 
     try {
       const text = await extractPDFText(file);
+
+      // Validate if it's a proper resume
+      await validateResume(text);
+
       setResumeText(text);
       setPresenceChecklist(buildPresenceChecklist(text));
 
@@ -256,8 +475,10 @@ export default function AnalyzerPage() {
       setAnalysis(aiResult);
       setErrorMessage(null);
     } catch (err: any) {
-      setErrorMessage(err.message);
-      reset();
+      console.error(err);
+      setErrorMessage(
+        err.message || "An unexpected error occurred. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -270,9 +491,9 @@ export default function AnalyzerPage() {
     <>
       <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
       <div className="dark:bg-main-gradient flex min-h-screen items-center justify-center pb-50 pt-[180px]">
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="container max-w-5xl">
           <div className="mb-6 text-center">
-            <h1 className="mb-2 bg-gradient-to-r from-cyan-400 via-teal-500 to-sky-500 bg-clip-text text-5xl font-light text-transparent sm:text-6xl lg:text-7xl">
+            <h1 className="mb-2 bg-gradient-to-r from-cyan-400 via-teal-500 to-sky-500 bg-clip-text text-3xl font-light text-transparent sm:text-6xl lg:text-7xl">
               Resume Analyzer
             </h1>
             <p className="text-sm text-slate-800 dark:text-slate-300 sm:text-base">
@@ -280,52 +501,36 @@ export default function AnalyzerPage() {
             </p>
           </div>
           {!uploadedFile && !hasStoredResume && !isLoading && !analysis && (
-            <div className="upload-area">
-              <div className="upload-zone">
-                <div className="mb-4 text-2xl">&#128196;</div>
-                <h3 className="mb-2 text-xl text-slate-700 dark:text-slate-200 sm:text-2xl">
-                  Upload your resume
-                </h3>
-                <p className="text:sm mb-4 text-slate-600 dark:text-slate-400 sm:mb-6 sm:text-base">
-                  PDF files only . Get instant analysis
-                </p>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => {
-                    setErrorMessage(null);
-                    handleFileUpload(e);
-                  }}
-                  disabled={!aiReady}
-                  className="hidden"
-                  id="file-upload"
-                  title="file-upload"
-                ></input>
-                <label
-                  htmlFor="file-upload"
-                  className={`btn-primary inline-block ${!aiReady ? "cursor-not-allowed opacity-50" : ""}`}
-                >
-                  Choose PDF File
-                </label>
-              </div>
+            <div className="upload-area text-center">
+              <h3 className="mb-2 text-xl text-slate-700 dark:text-slate-200">
+                Upload your resume
+              </h3>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                disabled={!aiReady}
+                className="hidden"
+                id="file-upload"
+              />
+              <label
+                htmlFor="file-upload"
+                className={`btn-primary inline-block ${!aiReady ? "cursor-not-allowed opacity-50" : ""}`}
+              >
+                Choose PDF File
+              </label>
             </div>
           )}
 
           {isLoading && (
-            <div className="mx-auto max-w-md p-6 sm:p-8">
-              <div className="text-center">
-                <div className="loading-spinner"></div>
-                <h3 className="mb-2 text-lg text-slate-800 dark:text-slate-200 sm:text-xl">
-                  Analyzing your resume
-                </h3>
-                <p className="text-sm text-slate-400 sm:text-base">
-                  Please wait, your resume is being analyzed...{" "}
-                </p>
-              </div>
+            <div className="mt-8 text-center">
+              <div className="loading-spinner mx-auto mb-4"></div>
+              <p className="text-lg text-slate-200">Analyzing your resume...</p>
             </div>
           )}
+
           {errorMessage && (
-            <div className="mb-4 rounded border border-red-500 bg-red-600/20 p-3 text-red-800 dark:text-red-100">
+            <div className="mt-6 rounded border border-red-500 bg-red-600/20 p-4 text-red-800">
               <strong>Error:</strong> {errorMessage}
             </div>
           )}
@@ -352,9 +557,9 @@ export default function AnalyzerPage() {
                     <button
                       type="button"
                       onClick={reset}
-                      className="btn-secondary"
+                      className="cursor-pointer rounded-xl border border-red-500/30 bg-red-500 px-24 py-12 text-lg text-red-100 transition hover:bg-red-500/30 dark:bg-red-500/20 dark:text-red-300"
                     >
-                      New Analysis
+                      Reset
                     </button>
                   </div>
                 </div>

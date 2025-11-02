@@ -9,6 +9,7 @@ import {
   FileSearch,
   Briefcase,
   FileText,
+  MoreVertical,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -19,6 +20,13 @@ import ResumePreview from "@/components/ResumePreview";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useRouter } from "next/navigation";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Page() {
   const [resumes, setResumes] = useState<ResumeServerData[]>([]);
@@ -57,76 +65,151 @@ export default function Page() {
   };
 
   const handleDownload = async (resume: ResumeServerData) => {
+    let tempDiv: HTMLDivElement | null = null;
+    let root: any = null;
+
     try {
       const resumeValues = mapToResumeValues(resume);
 
-      // Create a temporary container
-      const tempDiv = document.createElement("div");
-      tempDiv.style.position = "absolute";
-      tempDiv.style.left = "-9999px";
+      // Create a temporary container - use opacity instead of visibility for proper dimension calculation
+      tempDiv = document.createElement("div");
+      tempDiv.style.position = "fixed";
+      tempDiv.style.left = "0";
+      tempDiv.style.top = "0";
       tempDiv.style.width = "794px";
+      tempDiv.style.height = "1123px"; // A4 height in pixels at 96 DPI
+      tempDiv.style.opacity = "0";
+      tempDiv.style.pointerEvents = "none";
+      tempDiv.style.zIndex = "-1";
+      tempDiv.style.overflow = "visible";
       document.body.appendChild(tempDiv);
 
-      // Render resume preview in temp div
-      const { createRoot } = await import("react-dom/client");
-      const root = createRoot(tempDiv);
-
+      // Create preview container with explicit dimensions
       const previewContainer = document.createElement("div");
       previewContainer.style.width = "794px";
+      previewContainer.style.minHeight = "1123px";
       previewContainer.style.background = "white";
+      previewContainer.id = "temp-resume-preview";
       tempDiv.appendChild(previewContainer);
+
+      // Render resume preview in the preview container
+      const { createRoot } = await import("react-dom/client");
+      root = createRoot(previewContainer);
 
       root.render(
         <ResumePreview resumeData={resumeValues} className="w-full" />,
       );
 
-      // Wait for rendering
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for React to render and dimensions to be calculated
+      // First wait for initial render
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const canvas = await html2canvas(previewContainer, {
+      // Wait for ResizeObserver to calculate dimensions
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Force a reflow to ensure dimensions are calculated
+      void previewContainer.offsetHeight;
+
+      // Wait for images to load if any
+      const images = previewContainer.querySelectorAll("img");
+      if (images.length > 0) {
+        await Promise.all(
+          Array.from(images).map(
+            (img) =>
+              new Promise<void>((resolve) => {
+                if (img.complete) {
+                  resolve();
+                } else {
+                  img.onload = () => resolve();
+                  img.onerror = () => resolve(); // Continue even if image fails
+                  setTimeout(() => resolve(), 3000); // Timeout after 3s
+                }
+              }),
+          ),
+        );
+      }
+
+      // Get the actual content element from ResumePreview
+      const resumeContent = previewContainer.querySelector(
+        "#resumePreviewContent",
+      );
+      const targetElement = (resumeContent || previewContainer) as HTMLElement;
+
+      if (!targetElement) {
+        throw new Error("Resume content element not found. Please try again.");
+      }
+
+      // Wait a bit more to ensure content is fully rendered
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Check if content has dimensions
+      if (targetElement.scrollHeight === 0 || targetElement.scrollWidth === 0) {
+        throw new Error(
+          "Resume content is not ready. Please wait and try again.",
+        );
+      }
+
+      const canvas = await html2canvas(targetElement, {
         scale: 2,
         useCORS: true,
         logging: false,
+        backgroundColor: "#ffffff",
+        width: targetElement.scrollWidth || 794,
+        height: targetElement.scrollHeight,
+        allowTaint: false,
+        windowWidth: 794,
+        windowHeight: targetElement.scrollHeight,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        throw new Error("Failed to capture resume preview. Please try again.");
+      }
+
+      const imgData = canvas.toDataURL("image/png", 1.0);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
 
-      const imgWidth = 210;
-      const pageHeight = 297;
+      // Add proper margins (1cm = 10mm on each side)
+      const margin = 10;
+      const imgWidth = 210 - margin * 2; // A4 width minus margins
+      const pageHeight = 297 - margin * 2; // A4 height minus margins
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
 
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      // First page with margins
+      pdf.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
+      // Additional pages if content exceeds one page
       while (heightLeft >= 0) {
         pdf.addPage();
-        pdf.addImage(
-          imgData,
-          "PNG",
-          0,
-          heightLeft - imgHeight,
-          imgWidth,
-          imgHeight,
-        );
+        const yPosition = margin - (imgHeight - pageHeight - heightLeft);
+        pdf.addImage(imgData, "PNG", margin, yPosition, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
 
-      const fileName =
-        `${resume.firstName || "resume"}_${resume.lastName || ""}_${Date.now()}.pdf`.trim();
+      const fileName = `${resume.title || "resume"}_${Date.now()}.pdf`.trim();
       pdf.save(fileName);
-
-      // Cleanup
-      root.unmount();
-      document.body.removeChild(tempDiv);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      alert("Failed to generate PDF");
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to generate PDF";
+      alert(`Failed to generate PDF: ${errorMessage}`);
+    } finally {
+      // Always cleanup
+      try {
+        if (root) {
+          root.unmount();
+        }
+        if (tempDiv?.parentNode) {
+          document.body.removeChild(tempDiv);
+        }
+      } catch (cleanupError) {
+        console.warn("Cleanup error:", cleanupError);
+      }
     }
   };
 
@@ -231,81 +314,77 @@ export default function Page() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-24 md:grid-cols-3 lg:grid-cols-5">
           {resumes.map((resume) => {
             const resumeValues = mapToResumeValues(resume);
-            const resumeName =
-              `${resume.firstName || ""} ${resume.lastName || ""}`.trim() ||
-              "Untitled Resume";
+            const resumeName = resume.title || "Untitled Resume";
 
             return (
               <div
                 key={resume.id}
-                className="group relative overflow-hidden rounded-lg border bg-white shadow-md transition-shadow hover:shadow-lg"
+                className="group relative overflow-hidden rounded-lg border bg-white p-12 shadow-md transition-shadow hover:shadow-lg"
               >
-                <div className="bg-gray-50 aspect-[210/297] overflow-hidden">
-                  <ResumePreview
-                    resumeData={resumeValues}
-                    className="h-full w-full"
-                  />
+                <div className="relative">
+                  <div className="bg-gray-50 aspect-[210/297] h-48 overflow-hidden">
+                    <ResumePreview
+                      resumeData={resumeValues}
+                      className="h-full w-full origin-top-left scale-75"
+                    />
+                  </div>
+                  <div className="absolute right-2 top-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 bg-white/90 shadow-md hover:bg-white"
+                        >
+                          <MoreVertical className="h-4 w-4 dark:text-black" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/editor?resumeId=${resume.id}`}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDownload(resume)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleAnalyze(resume)}>
+                          <FileSearch className="mr-2 h-4 w-4" />
+                          Analyze
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleRecommend(resume)}
+                        >
+                          <Briefcase className="mr-2 h-4 w-4" />
+                          Find Jobs
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(resume.id)}
+                          disabled={deletingId === resume.id}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {deletingId === resume.id ? "Deleting..." : "Delete"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
                 <div className="border-t bg-white p-4">
-                  <h3 className="mb-2 truncate text-lg font-semibold">
+                  <h3 className="mb-1 truncate text-lg font-semibold dark:text-black">
                     {resumeName}
                   </h3>
-                  <p className="text-gray-500 mb-3 text-sm">
+                  <p className="text-gray-500 text-sm dark:text-black">
                     Updated: {new Date(resume.updatedAt).toLocaleDateString()}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      asChild
-                      className="flex-1"
-                    >
-                      <Link href={`/editor?resumeId=${resume.id}`}>
-                        <Edit className="mr-1 size-4" />
-                        Edit
-                      </Link>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDownload(resume)}
-                      className="flex-1"
-                    >
-                      <Download className="mr-1 size-4" />
-                      Download
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAnalyze(resume)}
-                      className="flex-1"
-                    >
-                      <FileSearch className="mr-1 size-4" />
-                      Analyze
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRecommend(resume)}
-                      className="flex-1"
-                    >
-                      <Briefcase className="mr-1 size-4" />
-                      Jobs
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(resume.id)}
-                      disabled={deletingId === resume.id}
-                      className="w-full"
-                    >
-                      <Trash2 className="mr-1 size-4" />
-                      {deletingId === resume.id ? "Deleting..." : "Delete"}
-                    </Button>
-                  </div>
                 </div>
               </div>
             );

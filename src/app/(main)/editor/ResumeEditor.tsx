@@ -4,8 +4,9 @@ import useUnloadWarning from "@/hooks/useUnloadWarning";
 import { ResumeServerData } from "@/lib/types";
 import { cn, mapToResumeValues } from "@/lib/utils";
 import { ResumeValues } from "@/lib/validation";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useRef, useState } from "react";
+import { deleteResume } from "../resumes/actions";
 import Breadcrumbs from "./Breadcrumbs";
 import Footer from "./Footer";
 import ResumePreviewSection from "./ResumePreviewSection";
@@ -18,9 +19,14 @@ interface ResumeEditorProps {
 
 export default function ResumeEditor({ resumeToEdit }: ResumeEditorProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const originalResumeData = useRef<ResumeValues>(
+    resumeToEdit ? mapToResumeValues(resumeToEdit) : {},
+  );
 
   const [resumeData, setResumeData] = useState<ResumeValues>(
-    resumeToEdit ? mapToResumeValues(resumeToEdit) : {},
+    originalResumeData.current,
   );
 
   const [showSmResumePreview, setShowSmResumePreview] = useState(false);
@@ -37,12 +43,31 @@ export default function ResumeEditor({ resumeToEdit }: ResumeEditorProps) {
     window.history.pushState(null, "", `?${newSearchParams.toString()}`);
   }
 
+  async function handleCancel() {
+    // If creating a new resume (not editing) and it was auto-saved, delete it
+    if (!resumeToEdit) {
+      // Check both resumeData.id and searchParams resumeId (auto-save might have updated URL)
+      const resumeIdToDelete = resumeData.id || searchParams.get("resumeId");
+
+      if (resumeIdToDelete) {
+        try {
+          await deleteResume(resumeIdToDelete);
+        } catch (error) {
+          console.error("Error deleting resume:", error);
+          // Still navigate even if delete fails
+        }
+      }
+    }
+    // Navigate to resumes page
+    router.push("/resumes");
+  }
+
   const FormComponent = steps.find(
     (step) => step.key === currentStep,
   )?.component;
 
   return (
-    <div className="flex grow flex-col pb-50 pt-[180px]">
+    <div className="flex grow flex-col px-[20px] pb-50 pt-[180px]">
       <header className="space-y-1.5 border-b px-3 py-5 text-center">
         <h1 className="text-2xl font-bold">Design your resume</h1>
         <p className="text-sm text-muted-foreground">
@@ -80,6 +105,8 @@ export default function ResumeEditor({ resumeToEdit }: ResumeEditorProps) {
         showSmResumePreview={showSmResumePreview}
         setShowSmResumePreview={setShowSmResumePreview}
         isSaving={isSaving}
+        onCancel={handleCancel}
+        showCancel={!resumeToEdit}
       />
     </div>
   );

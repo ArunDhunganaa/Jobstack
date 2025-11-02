@@ -79,6 +79,29 @@ For proTips, give professional advice that would help them in their job search a
 
 Document text:
 {{DOCUMENT_TEXT}}`,
+
+  JOB_RECOMMENDER_PROMPT: `First, determine if this document is actually a resume. Look for:
+- Professional experience, work history, or employment information
+- Education background, degrees, or academic information  
+- Skills, qualifications, or professional competencies
+- Contact information and personal details
+
+If this is NOT a resume (e.g., invoice, receipt, contract, article, manual, etc.), respond with:
+{
+  "error": "This document does not appear to be a resume. Please upload a proper resume containing professional experience, education, and skills sections."
+}
+
+If this IS a resume, extract the most relevant professional keywords and skills that would be useful for job matching. Focus on:
+- Technical skills and technologies
+- Industry-specific terminology
+- Professional competencies and qualifications
+- Job titles and roles mentioned
+- Years of experience and expertise areas
+
+Respond with ONLY a JSON array of 5-8 keyword strings that best represent this resume for job matching purposes.
+
+Document text:
+{{DOCUMENT_TEXT}}`,
 };
 
 export const METRIC_CONFIG = [
