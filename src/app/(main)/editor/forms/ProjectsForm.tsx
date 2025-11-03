@@ -54,7 +54,16 @@ export default function ProjectsForm({
       setResumeData({
         ...resumeData,
         projects:
-          values.projects?.filter((project) => project !== undefined) || [],
+          values.projects
+            ?.filter((project) => project !== undefined)
+            .map((project) => ({
+              ...project,
+              technologies:
+                project.technologies
+                  ?.filter((tech) => tech !== undefined)
+                  .map((tech) => tech.trim())
+                  .filter((tech) => tech !== "") || [],
+            })) || [],
       });
     });
     return unsubscribe;
